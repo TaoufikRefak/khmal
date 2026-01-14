@@ -1,0 +1,7 @@
+flask
+flask_sqlalchemy
+werkzeug
+pika
+pyjwt
+circuitbreaker
+sendgrid

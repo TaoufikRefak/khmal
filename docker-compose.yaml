@@ -1,0 +1,209 @@
+networks:
+  mynetwork:
+    driver: bridge
+    attachable: true # Add this
+
+services:
+  # RabbitMQ for inter-service communication
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mynetwork
+
+  # Authentication Service
+  auth_service:
+    build:
+      context: ./auth_service
+      args:
+        GITHUB_TOKEN: ${GITHUB_TOKEN}
+    container_name: auth_service
+    ports:
+      - "3000:3000"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy # ✅ Ensure RabbitMQ is healthy before starting
+    environment:
+      DATABASE_URI: sqlite:///auth.db
+      RABBITMQ_HOST: rabbitmq
+    env_file:
+      - ./auth_service/.env
+    restart: always
+    networks:
+      - mynetwork
+
+  # User Management Service
+  user_service:
+    build:
+      context: ./user_service
+      args:
+        GITHUB_TOKEN: ${GITHUB_TOKEN}
+    container_name: user_service
+    ports:
+      - "3001:3001"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy # ✅ Wait for RabbitMQ
+    environment:
+      DATABASE_URI: sqlite:///user.db
+      RABBITMQ_HOST: rabbitmq
+    env_file:
+      - ./user_service/.env
+    restart: always
+    networks:
+      - mynetwork
+
+  # Course Management Service
+  course_service:
+    build:
+      context: ./course_service
+
+      args:
+        GITHUB_TOKEN: ${GITHUB_TOKEN}
+    container_name: course_service
+    ports:
+      - "3002:3002"
+    volumes:
+      - ./nginx/hls:/tmp/hls
+    # Store HLS chunks here
+    environment:
+      DATABASE_URI: sqlite:///course.db
+      RABBITMQ_HOST: rabbitmq
+      HLS_BASE_URL: http://nginx_gateway/hls # Add this
+      MIST_SERVER_URL: http://localhost/hls
+      NGINX_RTMP_URL: http://localhost # Not port 8080
+      NGINX_VOD_DIR: /tmp/hls
+
+    env_file:
+      - ./course_service/.env
+    depends_on:
+      rabbitmq:
+        condition: service_healthy # ✅ Wait for RabbitMQ
+    networks:
+      - mynetwork
+
+  # Playlist Service
+  playlist_service:
+    build:
+      context: ./playlist_service
+      args:
+        GITHUB_TOKEN: ${GITHUB_TOKEN}
+    container_name: playlist_service
+    ports:
+      - "3004:3004"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy # ✅ Wait for RabbitMQ
+    environment:
+      DATABASE_URI: sqlite:///playlist.db
+      RABBITMQ_HOST: rabbitmq
+    env_file:
+      - ./playlist_service/.env
+    restart: always
+    networks:
+      - mynetwork
+
+  # Analytics Service
+  analytics_service:
+    build:
+      context: ./analytics_service
+      args:
+        GITHUB_TOKEN: ${GITHUB_TOKEN}
+    container_name: analytics_service
+    ports:
+      - "3005:3005"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy # ✅ Wait for RabbitMQ
+    environment:
+      DATABASE_URI: sqlite:///analytics.db
+      RABBITMQ_HOST: rabbitmq
+    env_file:
+      - ./analytics_service/.env
+    restart: always
+    networks:
+      - mynetwork
+  nginx_rtmp:
+    image: tiangolo/nginx-rtmp:latest
+    container_name: nginx_rtmp
+    ports:
+      - "1935:1935"
+      - "8080:8080"
+    volumes:
+      - ./nginx/rtmp.conf:/etc/nginx/nginx.conf
+      - ./nginx/hls:/tmp/hls
+
+    networks:
+      - mynetwork
+  streaming_service:
+    build:
+      context: ./streaming_service
+      args:
+        GITHUB_TOKEN: ${GITHUB_TOKEN}
+    container_name: streaming_service
+    ports:
+      - "3010:3010"
+    volumes:
+      - ./videos/hls:/tmp/hls
+
+    environment:
+      MIST_RTMP_URL: rtmp://nginx_rtmp/live # Use service name
+      RABBITMQ_HOST: rabbitmq
+      CLIENT_HLS_BASE: http://nginx_gateway/hls
+      NGINX_RTMP_URL: rtmp://nginx_rtmp/live # Updated RTMP URL
+
+    env_file:
+      - ./streaming_service/.env
+    depends_on:
+      rabbitmq:
+        condition: service_healthy # ✅ Wait for RabbitMQ
+    networks:
+      - mynetwork
+
+  angular_frontend:
+    build: ./ang-front
+    ports:
+      - "4200:4200"
+    networks:
+      - mynetwork
+    environment:
+      - NODE_ENV=development
+  # Nginx Gateway
+  nginx_gateway:
+    image: nginx:latest
+    container_name: gateway_service
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      # - ./course_hls:/app/hls
+      # - ./static:/usr/share/nginx/html
+      # - ./videos/hls:/usr/share/nginx/html/hls # Mount to a path Nginx can serve
+
+    depends_on:
+      - streaming_service
+      - nginx_rtmp
+      - user_service
+      - playlist_service
+      - analytics_service
+      - course_service
+      - auth_service
+
+    networks:
+      - mynetwork
+
+volumes:
+  course_hls:
+  live_hls:
