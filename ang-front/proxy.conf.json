@@ -1,0 +1,68 @@
+{
+  "/auth": {
+    "target": "http://nginx_gateway",
+    "secure": false,
+    "changeOrigin": true,
+    "pathRewrite": { "^/auth": "/auth" }
+  },
+  "/users": {
+    "target": "http://nginx_gateway",
+    "secure": false,
+    "changeOrigin": true,
+    "pathRewrite": { "^/users": "/users" }
+  },
+  "/courses": {
+    "target": "http://nginx_gateway",
+    "secure": false,
+    "changeOrigin": true,
+    "pathRewrite": { "^/courses": "/courses" }
+  },
+  "/playlists": {
+    "target": "http://nginx_gateway",
+    "secure": false,
+    "changeOrigin": true,
+    "pathRewrite": { "^/playlists": "/playlists" }
+  },
+  "/analytics": {
+    "target": "http://nginx_gateway",
+    "secure": false,
+    "changeOrigin": true,
+    "pathRewrite": { "^/analytics": "/analytics" }
+  },
+  "/api": {
+    "target": "http://nginx_gateway",
+    "secure": false,
+    "changeOrigin": true,
+    "pathRewrite": { "^/api": "/api" }
+  },
+  "/branches": {
+    "target": "http://nginx_gateway",
+    "secure": false,
+    "changeOrigin": true,
+    "pathRewrite": { "^/branches": "/branches" }
+  },
+  "/teachers": {
+    "target": "http://nginx_gateway",
+    "secure": false,
+    "changeOrigin": true,
+    "pathRewrite": { "^/teachers": "/teachers" }
+  },
+  "/hls": {
+    "target": "http://nginx_gateway",
+    "secure": false,
+    "changeOrigin": true,
+    "pathRewrite": { "^/hls": "/hls" }
+  },
+  "/player.html": {
+    "target": "http://nginx_gateway",
+    "secure": false,
+    "changeOrigin": true,
+    "pathRewrite": { "^/player.html": "/player.html" }
+  },
+  "/static": {
+    "target": "http://nginx_gateway",
+    "secure": false,
+    "changeOrigin": true,
+    "pathRewrite": { "^/static": "/static" }
+  }
+}
